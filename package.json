@@ -1,0 +1,18 @@
+{
+  "name": "taskflow-fullstack",
+  "version": "1.0.0",
+  "description": "TaskFlow - Modern Full-Stack Task Management Application",
+  "type": "module",
+  "scripts": {
+    "build": "npm run build --prefix frontend",
+    "dev:backend": "npm run dev --prefix backend",
+    "dev:frontend": "npm run dev --prefix frontend",
+    "start": "node backend/server.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2"
+  }
+}

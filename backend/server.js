@@ -8,6 +8,8 @@ import taskRoutes from './routes/taskRoutes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Ensure .env is loaded from backend directory or root
 dotenv.config({ path: path.resolve(__dirname, '.env') });
 dotenv.config();
 
@@ -18,8 +20,13 @@ const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
 // Middleware
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow local development ports and no-origin requests (curl, mobile, etc.)
-    if (!origin || origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
+    // Allow local development ports, Vercel preview/production URLs, and mobile/curl
+    if (
+      !origin || 
+      origin.startsWith('http://localhost:') || 
+      origin.startsWith('http://127.0.0.1:') ||
+      origin.endsWith('.vercel.app')
+    ) {
       callback(null, true);
     } else {
       callback(null, true);
@@ -44,7 +51,8 @@ app.get('/api/health', (req, res) => {
   res.status(200).json({
     status: 'healthy',
     timestamp: new Date().toISOString(),
-    service: 'TaskFlow REST API'
+    service: 'TaskFlow REST API',
+    environment: process.env.VERCEL ? 'vercel-serverless' : 'standalone-node'
   });
 });
 
@@ -69,13 +77,20 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Start Server
-app.listen(PORT, () => {
-  console.log(`===============================================`);
-  console.log(`🚀 TaskFlow Backend running on port ${PORT}`);
-  console.log(`📡 Health Check: http://localhost:${PORT}/api/health`);
-  console.log(`💻 Allowed Client URL: ${CLIENT_URL}`);
-  console.log(`===============================================`);
-});
+// Start Server ONLY when run directly (not when imported as serverless function by Vercel)
+const isDirectExecution = Boolean(
+  process.argv[1] && 
+  path.resolve(process.argv[1]).toLowerCase() === path.resolve(__filename).toLowerCase()
+);
+
+if (isDirectExecution && !process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`===============================================`);
+    console.log(`🚀 TaskFlow Backend running on port ${PORT}`);
+    console.log(`📡 Health Check: http://localhost:${PORT}/api/health`);
+    console.log(`💻 Allowed Client URL: ${CLIENT_URL}`);
+    console.log(`===============================================`);
+  });
+}
 
 export default app;
