@@ -233,7 +233,7 @@ BEGIN
             EXCEPTION WHEN OTHERS THEN
                 NULL;
             END;
-        END IF;
+        END;
     END IF;
 
     -- Ensure profile exists
