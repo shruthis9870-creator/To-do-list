@@ -1,4 +1,4 @@
-import { supabase, supabaseAdmin } from '../config/supabase.js';
+import { supabase, supabaseAdmin, hasServiceRoleKey, createUserScopedClient } from '../config/supabase.js';
 
 /**
  * Register a new user with Supabase Auth and initialize user profile
@@ -54,17 +54,25 @@ export const register = async (req, res) => {
       });
     }
 
-    // Ensure profile row exists in public.profiles
-    const { error: profileError } = await supabaseAdmin
-      .from('profiles')
-      .upsert({
-        id: data.user.id,
-        full_name: full_name.trim(),
-        created_at: new Date().toISOString()
-      }, { onConflict: 'id' });
+    // Upsert into public.profiles
+    // If the database trigger on_auth_user_created ran, it's already there;
+    // this ensures it exists if the trigger was not yet added.
+    try {
+      const client = hasServiceRoleKey 
+        ? supabaseAdmin 
+        : (data.session?.access_token ? createUserScopedClient(data.session.access_token) : null);
 
-    if (profileError) {
-      console.warn('Profile sync notice:', profileError.message);
+      if (client) {
+        await client
+          .from('profiles')
+          .upsert({
+            id: data.user.id,
+            full_name: full_name.trim(),
+            created_at: new Date().toISOString()
+          }, { onConflict: 'id' });
+      }
+    } catch (profileErr) {
+      console.warn('Profile sync notice:', profileErr.message);
     }
 
     return res.status(201).json({
@@ -112,14 +120,28 @@ export const login = async (req, res) => {
       });
     }
 
-    // Retrieve full profile from database
-    const { data: profile } = await supabaseAdmin
-      .from('profiles')
-      .select('full_name, created_at')
-      .eq('id', data.user.id)
-      .single();
+    // Retrieve profile
+    let fullName = data.user.user_metadata?.full_name || data.user.email.split('@')[0];
 
-    const fullName = profile?.full_name || data.user.user_metadata?.full_name || data.user.email.split('@')[0];
+    try {
+      const client = hasServiceRoleKey
+        ? supabaseAdmin
+        : (data.session?.access_token ? createUserScopedClient(data.session.access_token) : null);
+
+      if (client) {
+        const { data: profile } = await client
+          .from('profiles')
+          .select('full_name, created_at')
+          .eq('id', data.user.id)
+          .single();
+
+        if (profile?.full_name) {
+          fullName = profile.full_name;
+        }
+      }
+    } catch {
+      // Fallback to user_metadata
+    }
 
     return res.status(200).json({
       success: true,
@@ -145,7 +167,6 @@ export const login = async (req, res) => {
  */
 export const logout = async (req, res) => {
   try {
-    // If authorization token present, signOut from Supabase
     if (req.token) {
       await supabase.auth.admin?.signOut?.(req.token).catch(() => {});
     }
@@ -168,18 +189,29 @@ export const logout = async (req, res) => {
  */
 export const getMe = async (req, res) => {
   try {
-    const { data: profile } = await supabaseAdmin
-      .from('profiles')
-      .select('*')
-      .eq('id', req.user.id)
-      .single();
+    let fullName = req.user.user_metadata?.full_name || req.user.email.split('@')[0];
+
+    try {
+      const client = hasServiceRoleKey ? supabaseAdmin : (req.userClient || supabase);
+      const { data: profile } = await client
+        .from('profiles')
+        .select('*')
+        .eq('id', req.user.id)
+        .single();
+
+      if (profile?.full_name) {
+        fullName = profile.full_name;
+      }
+    } catch {
+      // Fallback
+    }
 
     return res.status(200).json({
       success: true,
       user: {
         id: req.user.id,
         email: req.user.email,
-        full_name: profile?.full_name || req.user.user_metadata?.full_name || ''
+        full_name: fullName
       }
     });
   } catch (err) {

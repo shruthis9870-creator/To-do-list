@@ -1,4 +1,4 @@
-import { supabaseAdmin } from '../config/supabase.js';
+import { getDatabaseClient } from '../config/supabase.js';
 
 /**
  * Helper to get local date string YYYY-MM-DD
@@ -15,8 +15,9 @@ export const getTasks = async (req, res) => {
   try {
     const userId = req.user.id;
     const { status, priority, category, search, filter, sort } = req.query;
+    const client = getDatabaseClient(req);
 
-    let query = supabaseAdmin
+    let query = client
       .from('tasks')
       .select('*')
       .eq('user_id', userId);
@@ -64,7 +65,6 @@ export const getTasks = async (req, res) => {
         query = query.order('due_date', { ascending: true, nullsFirst: false });
         break;
       case 'priority':
-        // Priority sorting handled in SQL via case or in-memory
         query = query.order('created_at', { ascending: false });
         break;
       case 'newest':
@@ -117,8 +117,9 @@ export const getTaskStats = async (req, res) => {
   try {
     const userId = req.user.id;
     const todayStr = getTodayDateString();
+    const client = getDatabaseClient(req);
 
-    const { data: tasks, error } = await supabaseAdmin
+    const { data: tasks, error } = await client
       .from('tasks')
       .select('id, status, due_date')
       .eq('user_id', userId);
@@ -164,8 +165,9 @@ export const getTaskById = async (req, res) => {
   try {
     const userId = req.user.id;
     const { id } = req.params;
+    const client = getDatabaseClient(req);
 
-    const { data: task, error } = await supabaseAdmin
+    const { data: task, error } = await client
       .from('tasks')
       .select('*')
       .eq('id', id)
@@ -199,6 +201,7 @@ export const createTask = async (req, res) => {
   try {
     const userId = req.user.id;
     const { title, description, due_date, priority, category } = req.body;
+    const client = getDatabaseClient(req);
 
     if (!title || typeof title !== 'string' || title.trim().length === 0) {
       return res.status(400).json({
@@ -236,7 +239,7 @@ export const createTask = async (req, res) => {
       status: 'pending'
     };
 
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await client
       .from('tasks')
       .insert([newTask])
       .select()
@@ -273,9 +276,10 @@ export const updateTask = async (req, res) => {
     const userId = req.user.id;
     const { id } = req.params;
     const { title, description, due_date, priority, category, status } = req.body;
+    const client = getDatabaseClient(req);
 
     // Check ownership first
-    const { data: existingTask, error: checkError } = await supabaseAdmin
+    const { data: existingTask, error: checkError } = await client
       .from('tasks')
       .select('id')
       .eq('id', id)
@@ -338,7 +342,7 @@ export const updateTask = async (req, res) => {
 
     updates.updated_at = new Date().toISOString();
 
-    const { data: updatedTask, error: updateError } = await supabaseAdmin
+    const { data: updatedTask, error: updateError } = await client
       .from('tasks')
       .update(updates)
       .eq('id', id)
@@ -376,6 +380,7 @@ export const updateTaskStatus = async (req, res) => {
     const userId = req.user.id;
     const { id } = req.params;
     const { status } = req.body;
+    const client = getDatabaseClient(req);
 
     if (!status || !['pending', 'completed'].includes(status)) {
       return res.status(400).json({
@@ -384,7 +389,7 @@ export const updateTaskStatus = async (req, res) => {
       });
     }
 
-    const { data: updatedTask, error } = await supabaseAdmin
+    const { data: updatedTask, error } = await client
       .from('tasks')
       .update({
         status,
@@ -423,8 +428,9 @@ export const deleteTask = async (req, res) => {
   try {
     const userId = req.user.id;
     const { id } = req.params;
+    const client = getDatabaseClient(req);
 
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await client
       .from('tasks')
       .delete()
       .eq('id', id)
