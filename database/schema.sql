@@ -178,7 +178,7 @@ BEGIN
                     created_at,
                     updated_at
                 ) VALUES (
-                    demo_user_id::text,
+                    demo_user_id,
                     demo_user_id,
                     jsonb_build_object('sub', demo_user_id::text, 'email', 'demo@taskflow.com'),
                     'email',
@@ -188,25 +188,29 @@ BEGIN
                     timezone('utc'::text, now())
                 )
                 ON CONFLICT DO NOTHING;
-            EXCEPTION WHEN undefined_column THEN
-                INSERT INTO auth.identities (
-                    id,
-                    user_id,
-                    identity_data,
-                    provider,
-                    last_sign_in_at,
-                    created_at,
-                    updated_at
-                ) VALUES (
-                    demo_user_id::text,
-                    demo_user_id,
-                    jsonb_build_object('sub', demo_user_id::text, 'email', 'demo@taskflow.com'),
-                    'email',
-                    timezone('utc'::text, now()),
-                    timezone('utc'::text, now()),
-                    timezone('utc'::text, now())
-                )
-                ON CONFLICT DO NOTHING;
+            EXCEPTION WHEN OTHERS THEN
+                BEGIN
+                    INSERT INTO auth.identities (
+                        id,
+                        user_id,
+                        identity_data,
+                        provider,
+                        last_sign_in_at,
+                        created_at,
+                        updated_at
+                    ) VALUES (
+                        demo_user_id,
+                        demo_user_id,
+                        jsonb_build_object('sub', demo_user_id::text, 'email', 'demo@taskflow.com'),
+                        'email',
+                        timezone('utc'::text, now()),
+                        timezone('utc'::text, now()),
+                        timezone('utc'::text, now())
+                    )
+                    ON CONFLICT DO NOTHING;
+                EXCEPTION WHEN OTHERS THEN
+                    NULL; -- Safely ignore if identity table structure differs
+                END;
             END;
         END IF;
 
