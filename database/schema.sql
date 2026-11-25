@@ -3,6 +3,9 @@
 -- Target Database: Supabase PostgreSQL
 -- ====================================================================
 
+-- Enable pgcrypto for password hashing
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 -- 1. Create PROFILES Table
 -- Stores user profile metadata linked to Supabase auth.users
 CREATE TABLE IF NOT EXISTS public.profiles (
@@ -37,7 +40,6 @@ ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.tasks ENABLE ROW LEVEL SECURITY;
 
 -- 5. RLS Policies for PROFILES
--- Drop existing policies if they already exist to allow clean re-runs
 DROP POLICY IF EXISTS "Users can view own profile" ON public.profiles;
 DROP POLICY IF EXISTS "Users can insert own profile" ON public.profiles;
 DROP POLICY IF EXISTS "Users can update own profile" ON public.profiles;
@@ -121,3 +123,127 @@ CREATE TRIGGER on_auth_user_created
     AFTER INSERT ON auth.users
     FOR EACH ROW
     EXECUTE FUNCTION public.handle_new_user();
+
+-- ====================================================================
+-- 9. Seed Default / Demo User & Starter Tasks
+-- Credentials:
+-- Email:    demo@taskflow.com
+-- Password: TaskFlow123!
+-- ====================================================================
+DO $$
+DECLARE
+    demo_user_id UUID := 'd0000000-0000-0000-0000-000000000001';
+BEGIN
+    -- Check if demo user already exists
+    IF NOT EXISTS (SELECT 1 FROM auth.users WHERE email = 'demo@taskflow.com') THEN
+        -- Insert into auth.users with encrypted password
+        INSERT INTO auth.users (
+            instance_id,
+            id,
+            aud,
+            role,
+            email,
+            encrypted_password,
+            email_confirmed_at,
+            raw_app_meta_data,
+            raw_user_meta_data,
+            created_at,
+            updated_at,
+            confirmation_token
+        ) VALUES (
+            '00000000-0000-0000-0000-000000000000',
+            demo_user_id,
+            'authenticated',
+            'authenticated',
+            'demo@taskflow.com',
+            crypt('TaskFlow123!', gen_salt('bf')),
+            timezone('utc'::text, now()),
+            '{"provider":"email","providers":["email"]}'::jsonb,
+            '{"full_name":"Demo User"}'::jsonb,
+            timezone('utc'::text, now()),
+            timezone('utc'::text, now()),
+            ''
+        );
+
+        -- Insert identity record for Supabase GoTrue authentication
+        IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'auth' AND table_name = 'identities') THEN
+            BEGIN
+                INSERT INTO auth.identities (
+                    id,
+                    user_id,
+                    identity_data,
+                    provider,
+                    provider_id,
+                    last_sign_in_at,
+                    created_at,
+                    updated_at
+                ) VALUES (
+                    demo_user_id::text,
+                    demo_user_id,
+                    jsonb_build_object('sub', demo_user_id::text, 'email', 'demo@taskflow.com'),
+                    'email',
+                    demo_user_id::text,
+                    timezone('utc'::text, now()),
+                    timezone('utc'::text, now()),
+                    timezone('utc'::text, now())
+                )
+                ON CONFLICT DO NOTHING;
+            EXCEPTION WHEN undefined_column THEN
+                INSERT INTO auth.identities (
+                    id,
+                    user_id,
+                    identity_data,
+                    provider,
+                    last_sign_in_at,
+                    created_at,
+                    updated_at
+                ) VALUES (
+                    demo_user_id::text,
+                    demo_user_id,
+                    jsonb_build_object('sub', demo_user_id::text, 'email', 'demo@taskflow.com'),
+                    'email',
+                    timezone('utc'::text, now()),
+                    timezone('utc'::text, now()),
+                    timezone('utc'::text, now())
+                )
+                ON CONFLICT DO NOTHING;
+            END;
+        END IF;
+
+        -- Ensure profile exists
+        INSERT INTO public.profiles (id, full_name, created_at)
+        VALUES (demo_user_id, 'Demo User', timezone('utc'::text, now()))
+        ON CONFLICT (id) DO UPDATE SET full_name = 'Demo User';
+
+        -- Insert starter tasks
+        INSERT INTO public.tasks (user_id, title, description, due_date, priority, category, status)
+        VALUES 
+            (
+                demo_user_id, 
+                'Welcome to TaskFlow! 👋', 
+                'Explore your dashboard, review task metrics, and check off items to stay productive.', 
+                CURRENT_DATE, 
+                'high', 
+                'Personal', 
+                'completed'
+            ),
+            (
+                demo_user_id, 
+                'Organize project deliverables 📊', 
+                'Review upcoming deadlines, assign priorities (High, Medium, Low), and set categories.', 
+                CURRENT_DATE + INTERVAL '1 day', 
+                'medium', 
+                'Work', 
+                'pending'
+            ),
+            (
+                demo_user_id, 
+                'Try creating your own custom task ✨', 
+                'Click the "+ Add New Task" button in the upper right to create your first personal task.', 
+                CURRENT_DATE + INTERVAL '3 days', 
+                'low', 
+                'Study', 
+                'pending'
+            );
+    END IF;
+END $$;

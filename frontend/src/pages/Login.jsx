@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { CheckSquare, Eye, EyeOff, LogIn } from 'lucide-react';
+import { CheckSquare, Eye, EyeOff, LogIn, Sparkles } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import Navbar from '../components/Navbar';
 
@@ -41,6 +41,27 @@ export const Login = () => {
     }
   };
 
+  const handleDemoLogin = async () => {
+    setEmail('demo@taskflow.com');
+    setPassword('TaskFlow123!');
+    setError('');
+    setForgotMsg('');
+
+    try {
+      setLoading(true);
+      const res = await login('demo@taskflow.com', 'TaskFlow123!');
+      if (res.success) {
+        navigate('/dashboard');
+      } else {
+        setError(res.message || 'Default user not yet found. Please run database/schema.sql in your Supabase SQL Editor first.');
+      }
+    } catch (err) {
+      setError(err.message || 'Failed to sign in with demo user.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleForgotPassword = (e) => {
     e.preventDefault();
     setForgotMsg('Password reset instructions can be sent to your registered email address through Supabase Authentication.');
@@ -68,6 +89,47 @@ export const Login = () => {
             </div>
             <h2 className="auth-title">Welcome back</h2>
             <p className="auth-subtitle">Sign in to your TaskFlow dashboard.</p>
+          </div>
+
+          {/* Quick Demo Credentials Box */}
+          <div style={{
+            background: 'var(--bg-subtle)',
+            border: '1px solid var(--border-color)',
+            borderRadius: '10px',
+            padding: '0.85rem 1rem',
+            marginBottom: '1.25rem',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.5rem'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Default Demo Account
+              </span>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-light)' }}>Instant Access</span>
+            </div>
+            <div style={{ fontSize: '0.825rem', color: 'var(--text-main)', lineHeight: 1.4 }}>
+              <strong>Email:</strong> <code>demo@taskflow.com</code><br />
+              <strong>Password:</strong> <code>TaskFlow123!</code>
+            </div>
+            <button
+              type="button"
+              onClick={handleDemoLogin}
+              className="btn btn-outline"
+              style={{
+                width: '100%',
+                padding: '0.45rem',
+                fontSize: '0.85rem',
+                backgroundColor: '#ffffff',
+                borderColor: 'var(--primary-border)',
+                color: 'var(--primary)',
+                marginTop: '0.25rem'
+              }}
+              disabled={loading}
+            >
+              <Sparkles size={15} />
+              <span>Sign in with Demo Account</span>
+            </button>
           </div>
 
           {error && (
