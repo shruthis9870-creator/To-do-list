@@ -4,7 +4,7 @@
   "description": "TaskFlow - Modern Full-Stack Task Management Application",
   "type": "module",
   "scripts": {
-    "build": "npm run build --prefix frontend",
+    "build": "npm --prefix frontend install && npm --prefix frontend run build",
     "dev:backend": "npm run dev --prefix backend",
     "dev:frontend": "npm run dev --prefix frontend",
     "start": "node backend/server.js"
